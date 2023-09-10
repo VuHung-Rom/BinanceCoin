@@ -255,7 +255,22 @@ public class BinanceController {
              Tính khối lượng trung bình của các khoảng giá trừ 2 khoảng min và max của bids
 
              */
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(depthVol);
+            Map<Double, Double> bids = binanceClientDepth.getBids();
+            Double secondMax = giaTriLonThu2(bids);
+            Double scondMin = giaTriBeThu2(bids);
+            Map<Double, Double> orderBook = binanceClientDepth.getBids();
+            Double tbVolume = trungBinhKhoiLuong(orderBook);
+            Double giaNhap=22D;
+            Boolean kt = tonTaiGia(orderBook,giaNhap);
+            Map<Double,Double> ds = phanTuGiaNhoHon(orderBook,giaNhap);
+            Boolean giatrung = coGiaTrung(orderBook);
+            Double tbVolumeTruMinMax = khoiLuongTrungBinhLoaiTru(orderBook);
+            return ResponseEntity.status(HttpStatus.OK).body(ds);
+        /*    if (kt==true) {
+                return ResponseEntity.status(HttpStatus.OK).body("Giá tồn tại trong orderBook.");
+            } else {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Giá không tồn tại trong orderBook.");
+            }*/
         } else {
 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -264,83 +279,177 @@ public class BinanceController {
 
     /**
      * Tìm giá trị lớn thứ 2 trong mảng
+     *
      * @param bids
      * @return
      */
-    private Double giaTriLonThu2(Map<Double,Double> bids){
-       return  null;
+    private Double giaTriLonThu2(Map<Double, Double> bids) {
+        Double max2 = null;
+        Double secondMax = null;
+        for (Double price : bids.keySet()) {
+            if (max2 == null || price >= max2) {
+                secondMax = max2;
+
+                max2 = price;
+            } else if (secondMax == null || price > secondMax) {
+                secondMax = price;
+            }
+        }
+
+        return secondMax;
     }
 
     /**
      * Tìm giá trị bé thứ 2 trong mảng
+     *
      * @param bids
      * @return
      */
-    private Double giaTriBeThu2(Map<Double,Double> bids){
-        return  null;
+    private Double giaTriBeThu2(Map<Double, Double> bids) {
+        Double min2 = null;
+        Double secondMin = null;
+        for (Double price : bids.keySet()) {
+            if (min2 == null || price <= min2) {
+                secondMin = min2;
+
+                min2 = price;
+            } else if (secondMin == null || price < secondMin) {
+                secondMin = price;
+            }
+        }
+
+        return secondMin;
     }
+
 
     /**
      * Tính giá trị trung bình của khối lượng giao dịch
+     *
      * @param orderBook
      * @return
      */
-    private Double trungBinhKhoiLuong(Map<Double,Double> orderBook){
-        return  null;
+    private Double trungBinhKhoiLuong(Map<Double, Double> orderBook) {
+
+        Double tongVol = 0D;
+        int count=0;
+        for (Double vol : orderBook.values()) {
+            count++;
+            tongVol += vol;
+        }
+
+        return tongVol / count;
+
     }
 
     /**
      * Kiểm tra xem có giá nhập vào ko: trả về "CÓ" hoặc  "KHÔNG"
+     *
      * @param orderBook
      * @param price
      * @return
      */
-    private Boolean tonTaiGia(Map<Double,Double> orderBook, Double price){
-        return  null;
+    private Boolean tonTaiGia(Map<Double, Double> orderBook, Double price) {
+        return orderBook.containsKey(price);
     }
 
     /**
      * kiểm tra danh sách giá trị trùng ở 2 mảng
-     * @param orderBook
-     * @return
-     */
-    private Boolean coGiaTrung(Map<Double,Double> orderBook){
-        return  null;
-    }
-
-    /**
-     *  Lấy danh sách các phần tử nhỏ hơn giá truyền vào bids
-     * @param orderBook
-     * @return
-     */
-    private Map<Double, Double> phanTuGiaNhoHon(Map<Double,Double> orderBook, Double price){
-        return  null;
-    }
-
-    /**
      *
-     Lấy danh sách các phần tử lớn hơn giá truyền vào ask
+     * @param orderBook
+     * @return
+     */
+    private Boolean coGiaTrung(Map<Double, Double> orderBook) {
+         Set<Double> giaTrung = new HashSet<>();
+         for (Map.Entry<Double,Double> vol : orderBook.entrySet()){
+                Double giaTri = vol.getValue();
+                if(giaTrung.contains(giaTri)){
+                    return true;
+                }
+                giaTrung.add(giaTri);
+         }
+
+        return false;
+    }
+
+    /**
+     * Lấy danh sách các phần tử nhỏ hơn giá truyền vào bids
+     *
+     * @param orderBook
+     * @return
+     */
+    private Map<Double, Double> phanTuGiaNhoHon(Map<Double, Double> orderBook, Double price) {
+
+        Map<Double, Double> filteredMap = new HashMap<>();
+
+        for (Map.Entry<Double, Double> entry : orderBook.entrySet()) {
+            Double key = entry.getKey();
+            Double value = entry.getValue();
+
+            if (key < price) {
+                filteredMap.put(key, value);
+            }
+        }
+
+        return filteredMap;
+    }
+
+    /**
+     * Lấy danh sách các phần tử lớn hơn giá truyền vào ask
+     *
      * @param orderBook
      * @param price
      * @return
      */
-    private Map<Double, Double> phanTuGiaLonHon(Map<Double,Double> orderBook, Double price){
-        return  null;
+    private Map<Double, Double> phanTuGiaLonHon(Map<Double, Double> orderBook, Double price) {
+        return null;
     }
 
     /**
      * Tính khối lượng trung bình của các khoảng giá trừ 2 khoảng min và max của bids
+     *
      * @param orderBook
      * @return
      */
-    private Double khoiLuongTrungBinhLoaiTru(Map<Double,Double> orderBook){
-        return  null;
+    private Double khoiLuongTrungBinhLoaiTru(Map<Double, Double> orderBook) {
+        Double max = null;
+        Double min = null;
+        for (Double price : orderBook.values()) {
+            if (min == null) {
+                min = price;
+            } else {
+                if (min > price) {
+                    min = price;
+                }
+            }
+
+        }
+        for (Double price : orderBook.values()) {
+            if (max == null) {
+                max = price;
+            } else {
+                if (max < price) {
+                    max = price;
+
+                }
+            }
+        }
+        Double tongVol = 0D;
+        int count=0;
+        for (Double vol : orderBook.values()) {
+            count++;
+            tongVol += vol;
+        }
+
+        count= count-2;
+        tongVol=tongVol-(max-min);
+
+        return tongVol/count;
     }
 
     @GetMapping("/api/v3/kline-practice")
     public ResponseEntity<List<Cachedata>> getKlinePractice(@RequestParam String coin, String dataRange) {
 
-        List<Cachedata>  listData = getKlineData(coin);
+        List<Cachedata> listData = getKlineData(coin);
         /**
          * -- Kline
          *  Lấy Tổng khối lượng giao dịch trong 2 ngày gần nhất
@@ -353,23 +462,28 @@ public class BinanceController {
         return ResponseEntity.status(HttpStatus.OK).body(listData);
 
     }
-    private  Double KhoiLuong2Ngay( List<Cachedata>  listData ){
+
+    private Double KhoiLuong2Ngay(List<Cachedata> listData) {
 
         return null;
     }
-    private  Double KhoiLuong1Ngay( List<Cachedata>  listData ){
+
+    private Double KhoiLuong1Ngay(List<Cachedata> listData) {
 
         return null;
     }
-    private  Double KhoiLuongTrungBinhGio1Ngay( List<Cachedata>  listData ){
+
+    private Double KhoiLuongTrungBinhGio1Ngay(List<Cachedata> listData) {
 
         return null;
     }
-    private  List<Cachedata> dataTheoGio1Ngay( List<Cachedata>  listData ){
+
+    private List<Cachedata> dataTheoGio1Ngay(List<Cachedata> listData) {
 
         return null;
     }
-    private List<Cachedata>  getKlineData( String coin){
+
+    private List<Cachedata> getKlineData(String coin) {
         int totalRow = 2;
         if (MAP_CACHE_VOL_DATA == null) {
             MAP_CACHE_VOL_DATA = new HashMap<>();
