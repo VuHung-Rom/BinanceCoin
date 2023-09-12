@@ -17,7 +17,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -32,9 +31,6 @@ public class BinanceController {
     private static Map<String, List<Cachedata>> MAP_CACHE_VOL_DATA = null;
     @Autowired
     private CacheDataRepository cacheDataRepository;
-
-    @Autowired
-    private DepthRepository depthRepository;
 
 
     @GetMapping("/api/allow-token")
@@ -260,12 +256,13 @@ public class BinanceController {
             Double scondMin = giaTriBeThu2(bids);
             Map<Double, Double> orderBook = binanceClientDepth.getBids();
             Double tbVolume = trungBinhKhoiLuong(orderBook);
-            Double giaNhap=22D;
-            Boolean kt = tonTaiGia(orderBook,giaNhap);
-            Map<Double,Double> ds = phanTuGiaNhoHon(orderBook,giaNhap);
+            Double giaNhap = 200D;
+            Boolean kt = tonTaiGia(orderBook, giaNhap);
+            Map<Double, Double> dsnhohon = phanTuGiaNhoHon(orderBook, giaNhap);
+            Map<Double, Double> dslonhon = phanTuGiaLonHon(orderBook, giaNhap);
             Boolean giatrung = coGiaTrung(orderBook);
             Double tbVolumeTruMinMax = khoiLuongTrungBinhLoaiTru(orderBook);
-            return ResponseEntity.status(HttpStatus.OK).body(ds);
+            return ResponseEntity.status(HttpStatus.OK).body(dslonhon);
         /*    if (kt==true) {
                 return ResponseEntity.status(HttpStatus.OK).body("Giá tồn tại trong orderBook.");
             } else {
@@ -331,7 +328,7 @@ public class BinanceController {
     private Double trungBinhKhoiLuong(Map<Double, Double> orderBook) {
 
         Double tongVol = 0D;
-        int count=0;
+        int count = 0;
         for (Double vol : orderBook.values()) {
             count++;
             tongVol += vol;
@@ -359,14 +356,14 @@ public class BinanceController {
      * @return
      */
     private Boolean coGiaTrung(Map<Double, Double> orderBook) {
-         Set<Double> giaTrung = new HashSet<>();
-         for (Map.Entry<Double,Double> vol : orderBook.entrySet()){
-                Double giaTri = vol.getValue();
-                if(giaTrung.contains(giaTri)){
-                    return true;
-                }
-                giaTrung.add(giaTri);
-         }
+        Set<Double> giaTrung = new HashSet<>();
+        for (Map.Entry<Double, Double> vol : orderBook.entrySet()) {
+            Double giaTri = vol.getValue();
+            if (giaTrung.contains(giaTri)) {
+                return true;
+            }
+            giaTrung.add(giaTri);
+        }
 
         return false;
     }
@@ -379,18 +376,19 @@ public class BinanceController {
      */
     private Map<Double, Double> phanTuGiaNhoHon(Map<Double, Double> orderBook, Double price) {
 
-        Map<Double, Double> filteredMap = new HashMap<>();
+        Map<Double, Double> danhSach = new HashMap<>();
 
         for (Map.Entry<Double, Double> entry : orderBook.entrySet()) {
             Double key = entry.getKey();
             Double value = entry.getValue();
 
-            if (key < price) {
-                filteredMap.put(key, value);
+            if (price > key) {
+
+                danhSach.put(key, value);
             }
         }
 
-        return filteredMap;
+        return danhSach;
     }
 
     /**
@@ -401,8 +399,21 @@ public class BinanceController {
      * @return
      */
     private Map<Double, Double> phanTuGiaLonHon(Map<Double, Double> orderBook, Double price) {
-        return null;
+        Map<Double, Double> danhSach = new HashMap<>();
+
+        for (Map.Entry<Double, Double> entry : orderBook.entrySet()) {
+            Double key = entry.getKey();
+            Double value = entry.getValue();
+
+            if (price < key) {
+
+                danhSach.put(key, value);
+            }
+        }
+
+        return danhSach;
     }
+
 
     /**
      * Tính khối lượng trung bình của các khoảng giá trừ 2 khoảng min và max của bids
@@ -434,20 +445,20 @@ public class BinanceController {
             }
         }
         Double tongVol = 0D;
-        int count=0;
+        int count = 0;
         for (Double vol : orderBook.values()) {
             count++;
             tongVol += vol;
         }
 
-        count= count-2;
-        tongVol=tongVol-(max-min);
+        count = count - 2;
+        tongVol = tongVol - (max - min);
 
-        return tongVol/count;
+        return tongVol / count;
     }
 
     @GetMapping("/api/v3/kline-practice")
-    public ResponseEntity<List<Cachedata>> getKlinePractice(@RequestParam String coin, String dataRange) {
+    public ResponseEntity<?> getKlinePractice(@RequestParam String coin, String dataRange) {
 
         List<Cachedata> listData = getKlineData(coin);
         /**
@@ -458,29 +469,77 @@ public class BinanceController {
          *  Lấy danh sách khối lượng giao dịch theo giờ của 2 ngày gần nhất (trả về mỗi giờ 1 giá trị, khối lượng sẽ là tổng khối lượng trong khung giờ đấy tính)
          */
 
-        Double khoiLuong2Ngay = KhoiLuong2Ngay(listData);
-        return ResponseEntity.status(HttpStatus.OK).body(listData);
+
+        Double khoiluong1ngay = KhoiLuong1Ngay(listData);
+        Double khoiluong2ngay = KhoiLuong2Ngay(listData);
+        Double khoiluongTB = KhoiLuongTrungBinhGio1Ngay(listData);
+        List<Cachedata> kl = dataTheoGio1Ngay(listData);
+
+        return ResponseEntity.status(HttpStatus.OK).body(kl);
 
     }
 
     private Double KhoiLuong2Ngay(List<Cachedata> listData) {
+        Long tgHaiNgayTruoc = new Date().getTime() - (2 * 60 * 60 * 24 * 1000);
+        Double tongVol = 0D;
+        for (Cachedata data : listData) {
+            if (data.getOpenTime().getTime() >= tgHaiNgayTruoc) {
+                tongVol += data.getVolume();
+            }
+        }
 
-        return null;
+        return tongVol;
     }
 
     private Double KhoiLuong1Ngay(List<Cachedata> listData) {
 
-        return null;
+        Long tgMotNgayTruoc = new Date().getTime() - (60 * 60 * 24 * 1000);
+        Double tongVol = 0D;
+        for (Cachedata data : listData) {
+            if (data.getOpenTime().getTime() >= tgMotNgayTruoc) {
+                tongVol += data.getVolume();
+            }
+        }
+
+        return tongVol;
     }
 
     private Double KhoiLuongTrungBinhGio1Ngay(List<Cachedata> listData) {
 
-        return null;
+        Long tgMotNgayTruoc = new Date().getTime() - (60 * 60 * 24 * 1000);
+        Double tongVol = 0D;
+        int count = 0;
+        for (Cachedata cachedata : listData) {
+            if (cachedata.getOpenTime().getTime() >= tgMotNgayTruoc) {
+                count++;
+                tongVol += cachedata.getVolume();
+            }
+        }
+        return tongVol / count;
     }
 
     private List<Cachedata> dataTheoGio1Ngay(List<Cachedata> listData) {
+        List<Cachedata> danhSachvol1h = new ArrayList<>();
+        Long tg2NgayTruoc = new Date().getTime() - (2 * 60 * 60 * 24 * 1000);
+        Map<Long, Double> dulieu1h = new HashMap<>();
 
-        return null;
+        for (Cachedata cachedata : listData) {
+            if (cachedata.getOpenTime().getTime() >= tg2NgayTruoc) {
+                Long Gio= (cachedata.getOpenTime().getTime()/(60 * 60 * 1000))*(60 * 60 * 1000);
+                dulieu1h.put(Gio,dulieu1h.getOrDefault(Gio,0.0) + cachedata.getVolume());
+
+            }
+        }
+        for(Map.Entry<Long,Double> entry: dulieu1h.entrySet()){
+            Cachedata giodata = new Cachedata();
+            giodata.setOpenTime(new Date(entry.getKey()));
+            giodata.setVolume(entry.getValue());
+            danhSachvol1h.add(giodata);
+
+        }
+
+
+        return danhSachvol1h;
     }
 
     private List<Cachedata> getKlineData(String coin) {
@@ -544,6 +603,7 @@ public class BinanceController {
                 CacheDataEntity cacheDataEntity = new CacheDataEntity();
                 BeanUtils.copyProperties(cahedata, cacheDataEntity);
                 cacheDataEntity.setToken(coin.toUpperCase());
+
                 cacheDataRepository.save(cacheDataEntity);
             }
         }
